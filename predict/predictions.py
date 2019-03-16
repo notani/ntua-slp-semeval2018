@@ -67,13 +67,13 @@ def predictions(task, model, config, data, label_transformer=None,
 
     """
     word2idx = None
-    if config["op_mode"] == "word":
+    if config["token_type"] == "word":
         word2idx, idx2word, embeddings = load_embeddings(config)
 
     # dummy scores if order to utilize Dataset classes as they are
     dummy_y = [0] * len(data)
 
-    if config["op_mode"] == "word":
+    if config["token_type"] == "word":
 
         if preprocessor is None:
             preprocessor = twitter_preprocess()
@@ -84,13 +84,13 @@ def predictions(task, model, config, data, label_transformer=None,
                               label_transformer=label_transformer)
         loader = DataLoader(dataset, batch_size)
 
-    elif config["op_mode"] == "char":
+    elif config["token_type"] == "char":
         print("Building char-level datasets...")
         dataset = CharDataset(data, dummy_y, name=name,
                               label_transformer=label_transformer)
         loader = DataLoader(dataset, batch_size)
     else:
-        raise ValueError("Invalid op_mode")
+        raise ValueError("Invalid token_type")
 
     model.to(DEVICE)
 

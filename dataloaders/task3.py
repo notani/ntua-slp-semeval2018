@@ -48,6 +48,12 @@ def parse(task, dataset):
     return X, y
 
 
+def parse_file(data_file):
+    X, y = parse_train_csv(data_file)
+    y = [int(label) for label in y]
+    return X, y
+
+
 def parse_test(task='a'):
     if task == 'a':
         data_file = config.TASK3.TASK_A_TEST
