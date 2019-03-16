@@ -81,7 +81,7 @@ class RNNEncoder(nn.Module):
         """
         # pack the batch
         packed = pack_padded_sequence(embs, list(lengths.data),
-                                      batch_first=True)
+                                      batch_first=True).float()
 
         out_packed, _ = self.rnn(packed)
 

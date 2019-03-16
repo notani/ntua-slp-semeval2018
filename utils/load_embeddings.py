@@ -90,7 +90,8 @@ def load_word_vectors(file, dim):
             print(set([len(x) for x in embeddings]))
 
             print('Found %s word vectors.' % len(embeddings))
-            embeddings = numpy.array(embeddings, dtype='float32')
+            embeddings = numpy.vstack(embeddings)
+            # embeddings = numpy.array(embeddings, dtype='float32')
 
         # write the data to a cache file
         write_cache_word_vectors(file, (word2idx, idx2word, embeddings))

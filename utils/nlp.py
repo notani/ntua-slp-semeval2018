@@ -3,6 +3,7 @@ from ekphrasis.classes.preprocessor import TextPreProcessor
 from ekphrasis.classes.tokenizer import SocialTokenizer
 from ekphrasis.dicts.emoticons import emoticons
 from tqdm import tqdm
+from multiprocessing import Pool
 
 
 def tokenize(text, lowercase=True):
@@ -10,6 +11,26 @@ def tokenize(text, lowercase=True):
         text = text.lower()
     return text.split()
 
+
+
+def preprocess_(dataset):
+    preprocessor = TextPreProcessor(
+        normalize=['url', 'email', 'percent', 'money', 'phone', 'user',
+                   'time',
+                   'date', 'number'],
+        annotate={"hashtag", "elongated", "allcaps", "repeated", 'emphasis',
+                  'censored'},
+        all_caps_tag="wrap",
+        fix_text=True,
+        segmenter="twitter_2018",
+        corrector="twitter_2018",
+        unpack_hashtags=True,
+        unpack_contractions=True,
+        spell_correct_elong=False,
+        tokenizer=SocialTokenizer(lowercase=True).tokenize,
+        dicts=[emoticons]
+    ).pre_process_doc
+    return [preprocessor(x) for x in dataset]
 
 def twitter_preprocess():
     preprocessor = TextPreProcessor(
@@ -32,11 +53,28 @@ def twitter_preprocess():
     def preprocess(name, dataset):
         desc = "PreProcessing dataset {}...".format(name)
 
+        data = [None for _ in range(len(dataset))]
+        N = len(data)
+        for i, x in tqdm(enumerate(dataset), desc=desc, total=N):
+            data[i] = preprocessor(x)
         data = [preprocessor(x)
                 for x in tqdm(dataset, desc=desc)]
+
         return data
 
-    return preprocess
+    def parallel_preprocess(name, dataset):
+        N = len(dataset)
+        batchsize = 1000
+        n_splits = N // batchsize + (1 if N % batchsize > 0 else 0)
+        batches = (dataset[i*batchsize:(i+1)*batchsize] for i in range(n_splits))
+        data = []
+        with Pool(processes=6) as p:
+            for result in tqdm(p.imap(preprocess_, batches), total=n_splits):
+                data += result
+        return data
+
+    # return preprocess
+    return parallel_preprocess
 
 
 def vectorize(sequence, el2idx, max_length, unk_policy="random",

@@ -194,7 +194,6 @@ class WordDataset(BaseDataset):
         ).pre_process_doc
 
         desc = "PreProcessing dataset {}...".format(name)
-
         data = [preprocessor(x) for x in tqdm(dataset, desc=desc)]
         return data
 

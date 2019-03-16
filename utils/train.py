@@ -3,18 +3,19 @@ This file contains functions with logic that is used in almost all models,
 with the goal of avoiding boilerplate code (and bugs due to copy-paste),
 such as training pipelines.
 """
-import glob
-import math
-import os
-import pickle
 
-import numpy
-import torch
+from copy import deepcopy
 from scipy.stats import pearsonr
 from sklearn.metrics import f1_score, recall_score, accuracy_score, \
     precision_score, jaccard_similarity_score
 from torch.nn import ModuleList
 from torch.utils.data import DataLoader
+import glob
+import math
+import numpy
+import os
+import pickle
+import torch
 
 from config import TRAINED_PATH, BASE_PATH, DEVICE
 from logger.training import class_weigths, Checkpoint, EarlyStop, Trainer
@@ -60,6 +61,22 @@ def get_pretrained(pretrained):
 def load_datasets(datasets, train_batch_size, eval_batch_size, token_type,
                   preprocessor=None,
                   params=None, word2idx=None, label_transformer=None):
+
+    def sample_validation(dataset, n=100):
+        """Sample n instances for validation from training."""
+        n_ = len(dataset)
+        dataset.data = numpy.array(dataset.data)
+        dataset.labels = numpy.array(dataset.labels)
+        dataset_valid = deepcopy(dataset)
+        indices = numpy.random.permutation(len(dataset))
+        dataset_valid.data = dataset_valid.data[indices[:n]]
+        dataset_valid.labels = dataset_valid.labels[indices[:n]]
+        dataset.data = dataset.data[indices[n:]]
+        dataset.labels = dataset.labels[indices[n:]]
+        assert len(dataset_valid.data) == len(dataset_valid.labels) == n
+        assert len(dataset.data) == len(dataset.labels) == n_ - n
+        return dataset, dataset_valid
+        
     if params is not None:
         name = "_".join(params) if isinstance(params, list) else params
     else:
@@ -79,9 +96,14 @@ def load_datasets(datasets, train_batch_size, eval_batch_size, token_type,
             dataset = WordDataset(v[0], v[1], word2idx, name=_name,
                                   preprocess=preprocessor,
                                   label_transformer=label_transformer)
+            if k == 'train':  # Sample validation instances
+                dataset, dataset_valid = sample_validation(dataset)
+                loaders['valid'] = DataLoader(dataset_valid, eval_batch_size,
+                                              shuffle=False, drop_last=False)
             batch_size = train_batch_size if k == "train" else eval_batch_size
-            loaders[k] = DataLoader(dataset, batch_size, shuffle=True,
-                                    drop_last=True)
+            loaders[k] = DataLoader(dataset, batch_size,
+                                    shuffle=(k == "train"),
+                                    drop_last=(k == "train"))
 
     elif token_type == "char":
         print("Building char-level datasets...")
@@ -89,12 +111,17 @@ def load_datasets(datasets, train_batch_size, eval_batch_size, token_type,
             _name = "{}_{}".format(name, k)
             dataset = CharDataset(v[0], v[1], name=_name,
                                   label_transformer=label_transformer)
+            if k == 'train':  # Sample validation instances
+                dataset, dataset_valid = sample_validation(dataset)
+                loaders['valid'] = DataLoader(dataset_valid, eval_batch_size,
+                                              shuffle=False, drop_last=False)
             batch_size = train_batch_size if k == "train" else eval_batch_size
             loaders[k] = DataLoader(dataset, batch_size, shuffle=True,
                                     drop_last=True)
 
     else:
         raise ValueError("Invalid token_type.")
+
 
     return loaders
 
@@ -363,7 +390,7 @@ def define_trainer(task,
                       optimizer=optimizer,
                       pipeline=pipeline,
                       metrics=metrics,
-                      use_exp=True,
+                      use_exp=config.get('use_exp', False),
                       inspect_weights=False,
                       checkpoint=checkpoint,
                       early_stopping=early_stopping)
